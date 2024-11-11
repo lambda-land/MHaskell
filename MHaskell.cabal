@@ -59,7 +59,13 @@ library
     import:           warnings
 
     -- Modules exported by the library.
-    exposed-modules:  MyLib
+    exposed-modules:
+        MyLib
+        MHaskell.Micro
+        MHaskell.Mini
+        MHaskell.MiniPlus
+    
+
 
     -- Modules included in this library but not exported.
     -- other-modules:

@@ -1,0 +1,2 @@
+module MHaskell.MiniPlus where
+
