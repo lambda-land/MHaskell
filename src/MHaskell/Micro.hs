@@ -4,8 +4,15 @@ type Name = String
 
 type Prog = [Stmt]
 
+data Type
+  = TInt
+  | TBool
+  | TFun Type Type
+  deriving (Show,Eq)
+
 data Stmt 
   = SFunDef Name [Name] Expr
+  | STypeSig Name Type
   deriving (Show,Eq)
 
 data Expr
