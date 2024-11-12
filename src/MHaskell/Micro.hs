@@ -7,6 +7,8 @@ type Prog = [Stmt]
 data Type
   = TInt
   | TBool
+  | TIntList
+  | TBoolList
   | TFun Type Type
   deriving (Show,Eq)
 
