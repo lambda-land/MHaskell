@@ -1,6 +1,5 @@
 module MHaskell.Micro where
 
-
 type Name = String
 
 type Prog = [Stmt]
@@ -8,7 +7,6 @@ type Prog = [Stmt]
 data Stmt 
   = SFunDef Name [Name] Expr
   deriving (Show,Eq)
-
 
 data Expr
   = EVar Name
@@ -21,6 +19,7 @@ data Expr
   | EFun Name Expr
   | ELet Name Expr Expr
   | EMatch Expr [CaseAlt]
+  | EIf Expr Expr Expr
   deriving (Show,Eq)
 
 data BinOp 
@@ -38,4 +37,3 @@ data Pattern
   | PVar Name
   | PCons Name [Pattern]
   deriving (Show,Eq)
-
