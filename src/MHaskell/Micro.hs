@@ -16,7 +16,7 @@ data Expr
   | ELitBool Bool
   | ELitNil
   | ELitList [Expr]
-  | EEBinOp Expr BinOp Expr
+  | EBinOp Expr BinOp Expr
   | EApp Expr Expr
   | EFun Name Expr
   | ELet Name Expr Expr
