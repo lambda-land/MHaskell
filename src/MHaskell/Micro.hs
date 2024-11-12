@@ -36,11 +36,11 @@ data BinOp
   | Mul
   | Sub
   | Div
-  | EQ
-  | LT
-  | GT
-  | LE
-  | GE
+  | Eq
+  | Lt
+  | Gt
+  | Le
+  | Ge
   | Cons
   deriving (Show,Eq)
 
