@@ -49,5 +49,9 @@ type CaseAlt = (Pattern,Expr)
 data Pattern
   = PAny
   | PVar Name
-  | PCons Name [Pattern]
+  | PLitInt Int
+  | PLitBool Bool
+  | PLitNil
+  -- PList [Pattern] ? -- case e of [x,y] -> e
+  | PCons Pattern Pattern
   deriving (Show,Eq)
