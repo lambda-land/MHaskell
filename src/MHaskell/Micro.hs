@@ -53,5 +53,5 @@ data Pattern
   | PLitBool Bool
   | PLitNil
   -- PList [Pattern] ? -- case e of [x,y] -> e
-  | PCons Pattern Pattern
+  | PListCons Pattern Pattern -- Causes AST to be superset of concrete syntax
   deriving (Show,Eq)
