@@ -33,10 +33,12 @@ type ConsDef = (ConsName,[Type])
 
 data Expr
   = EVar Name
-  -- | ELitInt Int     -- ?
-  -- | ELitBool Bool   -- ?
-  -- | ELitNil         -- ?*
-  -- | ELitList [Expr] -- ?*
+  {-   Written as pattern synonyms
+  | ELitInt Int
+  | ELitBool Bool
+  | ELitNil
+  | ELitList [Expr]
+  -}
   | ECons ConsName
   | EBinOp Expr BinOp Expr
   | EApp Expr Expr
@@ -69,6 +71,7 @@ pattern ELitList :: [Expr] -> Expr
 pattern ELitList es <- (listExpr -> Just es)
   where ELitList es = foldr EListCons ELitNil es
 
+{- Test cases for ELitList 
 
 es :: [Expr]
 es = [ELitInt 1, ELitInt 2, ELitInt 3]
@@ -80,7 +83,8 @@ es'' :: [Expr]
 es'' = case es' of
          (ELitList es) -> es
 
-
+-- It should be that es == es'' . 
+-}
 
 data BinOp 
   = Add
@@ -101,8 +105,10 @@ data Pattern
   = PAny
   | PVar Name
   | PCons Name [Pattern]
-  -- | PCons ConsName
-  -- | PApp Pattern Pattern
+  {- TODO: Write equivalent pattern synonyms for these
+  | PCons ConsName
+  | PApp Pattern Pattern
+  -}
   deriving (Show,Eq)
 
 
