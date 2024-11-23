@@ -1,5 +1,8 @@
+{-# LANGUAGE PatternSynonyms #-}
+{-# LANGUAGE ViewPatterns #-}
 module MHaskell.Mini where
 
+import Text.Read (readMaybe)
 
 type Name = String
 
@@ -7,15 +10,12 @@ type TypeCons = Name
 type TypeVar  = Name
 
 data Type
-  = TInt       -- ?
-  | TBool      -- ?
-  | TList Type -- ?*
-  | TPair Type Type -- ?*
-  | TCons TypeCons
+  = TCons TypeCons
   | TVar TypeVar
-  -- | TAbs TypeVar Type -- forall a. T ?*
+  | TApp Type Type
   | TFun Type Type
   deriving (Show,Eq)
+
 
 type Prog = [Stmt]
 
@@ -33,10 +33,10 @@ type ConsDef = (ConsName,[Type])
 
 data Expr
   = EVar Name
-  | ELitInt Int     -- ?
-  | ELitBool Bool   -- ?
-  | ELitNil         -- ?*
-  | ELitList [Expr] -- ?*
+  -- | ELitInt Int     -- ?
+  -- | ELitBool Bool   -- ?
+  -- | ELitNil         -- ?*
+  -- | ELitList [Expr] -- ?*
   | ECons ConsName
   | EBinOp Expr BinOp Expr
   | EApp Expr Expr
@@ -45,6 +45,31 @@ data Expr
   | EMatch Expr [CaseAlt]
   | EIf Expr Expr Expr
   deriving (Show,Eq)
+
+pattern ELitInt :: Int -> Expr
+pattern ELitInt n <- ECons (readMaybe -> Just n)
+  where ELitInt n = ECons (show n)
+
+pattern ELitBool :: Bool -> Expr
+pattern ELitBool b <- ECons (readMaybe -> Just b)
+  where ELitBool b = ECons (show b)
+
+pattern ELitNil :: Expr
+pattern ELitNil = ECons "[]"
+
+pattern EListCons :: Expr -> Expr -> Expr
+pattern EListCons x xs = EApp (EApp (ECons ":") x) xs
+
+listExpr :: Expr -> Maybe [Expr]
+listExpr ELitNil = return []
+listExpr (EListCons e e') | Just es <- listExpr e' = return (e:es)
+listExpr _ = Nothing
+
+pattern ELitList :: [Expr] -> Expr
+pattern ELitList es <- (listExpr -> Just es)
+  where ELitList es = foldl EListCons ELitNil es
+
+
 
 data BinOp 
   = Add
@@ -64,12 +89,9 @@ type CaseAlt = (Pattern,Expr)
 data Pattern
   = PAny
   | PVar Name
-  | PLitInt Int    -- ?
-  | PLitBool Bool  -- ?
-  | PLitNil        -- ?*
-  -- PList [Pattern] ? -- case e of [x,y] -> e
-  | PListCons Pattern Pattern -- ?*
-  -- | PCons Name [Pattern]      -- Should `[] -> ...` be `PCons "[]" (...)`?
-  | PCons ConsName
-  | PApp Pattern Pattern -- (1:xs) = ((Cons 1) xs)
+  | PCons Name [Pattern]
+  -- | PCons ConsName
+  -- | PApp Pattern Pattern
   deriving (Show,Eq)
+
+
