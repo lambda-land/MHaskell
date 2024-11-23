@@ -67,7 +67,18 @@ listExpr _ = Nothing
 
 pattern ELitList :: [Expr] -> Expr
 pattern ELitList es <- (listExpr -> Just es)
-  where ELitList es = foldl EListCons ELitNil es
+  where ELitList es = foldr EListCons ELitNil es
+
+
+es :: [Expr]
+es = [ELitInt 1, ELitInt 2, ELitInt 3]
+
+es' :: Expr
+es' = ELitList es
+
+es'' :: [Expr]
+es'' = case es' of
+         (ELitList es) -> es
 
 
 
