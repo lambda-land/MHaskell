@@ -16,6 +16,11 @@ data Type
   | TFun Type Type
   deriving (Show,Eq)
 
+freeTypeVars :: Type -> [TypeVar]
+freeTypeVars (TCons _) = []
+freeTypeVars (TVar x)  = [x]
+freeTypeVars (TApp t1 t2) = freeTypeVars t1 ++ freeTypeVars t2
+freeTypeVars (TFun t1 t2) = freeTypeVars t1 ++ freeTypeVars t2
 
 type Prog = [Stmt]
 

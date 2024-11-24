@@ -78,7 +78,8 @@ library
     build-depends:
         base ^>=4.17.2.1,
         containers,
-        parsec
+        parsec,
+        prettyprinter
 
     -- Directories containing source files.
     hs-source-dirs:   src
