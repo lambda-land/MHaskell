@@ -2,7 +2,14 @@
 {-# LANGUAGE ViewPatterns #-}
 module MHaskell.Mini where
 
+{---- Imports ----}
+
+import Data.Set (Set)
+import qualified Data.Set as Set
+
 import Text.Read (readMaybe)
+
+{---- Data Definitions ----}
 
 type Name = String
 
@@ -16,11 +23,7 @@ data Type
   | TFun Type Type
   deriving (Show,Eq)
 
-freeTypeVars :: Type -> [TypeVar]
-freeTypeVars (TCons _) = []
-freeTypeVars (TVar x)  = [x]
-freeTypeVars (TApp t1 t2) = freeTypeVars t1 ++ freeTypeVars t2
-freeTypeVars (TFun t1 t2) = freeTypeVars t1 ++ freeTypeVars t2
+-- pattern PolyType :: 
 
 type Prog = [Stmt]
 
@@ -53,44 +56,6 @@ data Expr
   | EIf Expr Expr Expr
   deriving (Show,Eq)
 
-pattern ELitInt :: Int -> Expr
-pattern ELitInt n <- ECons (readMaybe -> Just n)
-  where ELitInt n = ECons (show n)
-
-pattern ELitBool :: Bool -> Expr
-pattern ELitBool b <- ECons (readMaybe -> Just b)
-  where ELitBool b = ECons (show b)
-
-pattern ELitNil :: Expr
-pattern ELitNil = ECons "[]"
-
-pattern EListCons :: Expr -> Expr -> Expr
-pattern EListCons x xs = EApp (EApp (ECons ":") x) xs
-
-listExpr :: Expr -> Maybe [Expr]
-listExpr ELitNil = return []
-listExpr (EListCons e e') | Just es <- listExpr e' = return (e:es)
-listExpr _ = Nothing
-
-pattern ELitList :: [Expr] -> Expr
-pattern ELitList es <- (listExpr -> Just es)
-  where ELitList es = foldr EListCons ELitNil es
-
-{- Test cases for ELitList 
-
-es :: [Expr]
-es = [ELitInt 1, ELitInt 2, ELitInt 3]
-
-es' :: Expr
-es' = ELitList es
-
-es'' :: [Expr]
-es'' = case es' of
-         (ELitList es) -> es
-
--- It should be that es == es'' . 
--}
-
 data BinOp 
   = Add
   | Mul
@@ -116,4 +81,81 @@ data Pattern
   -}
   deriving (Show,Eq)
 
+{---- Very Smart Constructors ----}
 
+-- pattern PolyType :: 
+
+pattern ELitInt :: Int -> Expr
+pattern ELitInt n <- ECons (readMaybe -> Just n)
+  where ELitInt n = ECons (show n)
+
+pattern ELitBool :: Bool -> Expr
+pattern ELitBool b <- ECons (readMaybe -> Just b)
+  where ELitBool b = ECons (show b)
+
+pattern ELitNil :: Expr
+pattern ELitNil = ECons "[]"
+
+pattern EListCons :: Expr -> Expr -> Expr
+pattern EListCons x xs = EApp (EApp (ECons ":") x) xs
+
+pattern ELitList :: [Expr] -> Expr
+pattern ELitList es <- (listExpr -> Just es)
+  where ELitList es = foldr EListCons ELitNil es
+
+{- Test cases for ELitList 
+
+es :: [Expr]
+es = [ELitInt 1, ELitInt 2, ELitInt 3]
+
+es' :: Expr
+es' = ELitList es
+
+es'' :: [Expr]
+es'' = case es' of
+         (ELitList es) -> es
+
+-- It should be that es == es'' . 
+-}
+
+pattern NullSet :: Set a
+pattern NullSet <- (Set.null -> True)
+  where NullSet = Set.empty
+
+pattern NonEmptySet :: Set a -> Set a
+pattern NonEmptySet s <- (\s -> (s,Set.null s) -> (s,False))
+
+
+grd :: (b -> a) -> b -> (a, b)
+grd f x = (f x, x)
+
+fgrd :: (c -> a) -> c -> (a, c -> a, c)
+fgrd f x = (f x,f,x)
+
+
+-- pattern Gaurd' :: (c -> Bool) -> c -> c
+-- pattern Gaurd' f x <- (fgrd f -> (True,f,x))
+
+
+-- pattern Gaurd f x <- (maybeGuard f -> Just x)
+-- check f (maybeGuard f -> Just x)
+
+{---- Utility Functions ----}
+
+maybeGuard :: (a -> Bool) -> a -> Maybe a
+maybeGuard p a | p a       = Just a
+               | otherwise = Nothing
+
+freeTypeVars :: Type -> Set TypeVar
+freeTypeVars = Set.fromList . freeTypeVars'
+
+freeTypeVars' :: Type -> [TypeVar]
+freeTypeVars' (TCons _) = []
+freeTypeVars' (TVar x)  = [x]
+freeTypeVars' (TApp t1 t2) = freeTypeVars' t1 ++ freeTypeVars' t2
+freeTypeVars' (TFun t1 t2) = freeTypeVars' t1 ++ freeTypeVars' t2
+
+listExpr :: Expr -> Maybe [Expr]
+listExpr ELitNil = return []
+listExpr (EListCons e e') | Just es <- listExpr e' = return (e:es)
+listExpr _ = Nothing
