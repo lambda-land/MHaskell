@@ -23,7 +23,6 @@ data Type
   | TFun Type Type
   deriving (Show,Eq)
 
--- pattern PolyType :: 
 
 type Prog = [Stmt]
 
@@ -83,7 +82,9 @@ data Pattern
 
 {---- Very Smart Constructors ----}
 
--- pattern PolyType :: 
+pattern PolyType :: Set TypeVar -> Type -> Type
+-- pattern PolyType fv t <- (\t -> (freeTypeVars t,t) -> (NonEmptySet fv,t))
+pattern PolyType fv t <- (sidePut freeTypeVars -> (t,NonEmptySet fv))
 
 pattern ELitInt :: Int -> Expr
 pattern ELitInt n <- ECons (readMaybe -> Just n)
@@ -123,24 +124,24 @@ pattern NullSet <- (Set.null -> True)
   where NullSet = Set.empty
 
 pattern NonEmptySet :: Set a -> Set a
-pattern NonEmptySet s <- (\s -> (s,Set.null s) -> (s,False))
+pattern NonEmptySet s <- (maybeGuard Set.null -> Just s)
+  where NonEmptySet s = case s of
+                          NullSet -> error "Cannot construct NonEmptySet from empty set"
+                          _       -> s
 
+newtype Pair a b = MkPair (a,b)
 
-grd :: (b -> a) -> b -> (a, b)
-grd f x = (f x, x)
+pattern Pair :: a -> b -> Pair a b
+pattern Pair a b = MkPair (a,b)
 
-fgrd :: (c -> a) -> c -> (a, c -> a, c)
-fgrd f x = (f x,f,x)
+-- fltr f (\a -> (f a,a) -> (b,a')) = Pair b a'
 
-
--- pattern Gaurd' :: (c -> Bool) -> c -> c
--- pattern Gaurd' f x <- (fgrd f -> (True,f,x))
-
-
--- pattern Gaurd f x <- (maybeGuard f -> Just x)
--- check f (maybeGuard f -> Just x)
+-- vFilter f (\a -> (f a,a) -> ()) = Pair () a
 
 {---- Utility Functions ----}
+
+sidePut :: (a -> b) -> a -> (a, b)
+sidePut f a = (a,f a)
 
 maybeGuard :: (a -> Bool) -> a -> Maybe a
 maybeGuard p a | p a       = Just a
