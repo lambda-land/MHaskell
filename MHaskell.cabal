@@ -64,6 +64,9 @@ library
         MHaskell.Micro
         MHaskell.Micro.Parser
         MHaskell.Mini
+        MHaskell.Mini.Syntax
+        MHaskell.Mini.Util
+        MHaskell.Mini.PrettyPrint
         MHaskell.MiniPlus
     
 
@@ -79,7 +82,8 @@ library
         base ^>=4.17.2.1,
         containers,
         parsec,
-        prettyprinter
+        prettyprinter,
+        text
 
     -- Directories containing source files.
     hs-source-dirs:   src
