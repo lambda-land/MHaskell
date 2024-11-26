@@ -95,10 +95,10 @@ pattern ELitBool b <- ECons (readMaybe -> Just b)
   where ELitBool b = ECons (show b)
 
 pattern ELitNil :: Expr
-pattern ELitNil = ECons "[]"
+pattern ELitNil = ECons "Nil"
 
 pattern EListCons :: Expr -> Expr -> Expr
-pattern EListCons x xs = EApp (EApp (ECons ":") x) xs
+pattern EListCons x xs = EApp (EApp (ECons "Cons") x) xs
 
 pattern ELitList :: [Expr] -> Expr
 pattern ELitList es <- (listExpr -> Just es)
@@ -137,6 +137,36 @@ pattern Pair a b = MkPair (a,b)
 -- fltr f (\a -> (f a,a) -> (b,a')) = Pair b a'
 
 -- vFilter f (\a -> (f a,a) -> ()) = Pair () a
+
+pattern (:+:) :: Expr -> Expr -> Expr
+pattern a :+: b = EBinOp a Add b
+
+pattern (:*:) :: Expr -> Expr -> Expr
+pattern a :*: b = EBinOp a Mul b
+
+pattern (:-:) :: Expr -> Expr -> Expr
+pattern a :-: b = EBinOp a Sub b
+
+pattern (:/:) :: Expr -> Expr -> Expr
+pattern a :/: b = EBinOp a Div b
+
+pattern (:==:) :: Expr -> Expr -> Expr
+pattern a :==: b = EBinOp a Eq b
+
+pattern (:<:) :: Expr -> Expr -> Expr
+pattern a :<: b = EBinOp a Lt b
+
+pattern (:>:) :: Expr -> Expr -> Expr
+pattern a :>: b = EBinOp a Gt b
+
+pattern (:<=:) :: Expr -> Expr -> Expr
+pattern a :<=: b = EBinOp a Le b
+
+pattern (:>=:) :: Expr -> Expr -> Expr
+pattern a :>=: b = EBinOp a Ge b
+
+pattern (:::) :: Expr -> Expr -> Expr
+pattern a ::: b = EBinOp a Cons b
 
 {---- Utility Functions ----}
 
