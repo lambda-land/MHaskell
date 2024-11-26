@@ -40,7 +40,9 @@ instance Pretty Expr where
   pretty (a :>=: b)   = pretty a <+> pretty (">=" :: Text) <+> pretty b
   pretty (a :<=: b)   = pretty a <+> pretty ("<=" :: Text) <+> pretty b
   pretty (a ::: b)    = pretty a <+> pretty (":" :: Text) <+> pretty b
-  pretty (EApp e1 e2) = pretty e1 
+  pretty (EApp e1 e2) = pretty e1 <+> pretty e2
+  pretty (ELet x e1 e2) = "let" <+> pretty (T.pack x) <+> "=" <+> pretty e1 <+> "in" <+> pretty e2
+  pretty (EIf e1 e2 e3) = "if" <+> pretty e1 <+> "then" <+> pretty e2 <+> "else" <+> pretty e3
 
 
 example1 = pretty $ ELitInt 2 :+: ELitInt 3
