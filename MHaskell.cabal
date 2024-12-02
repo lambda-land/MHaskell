@@ -63,6 +63,7 @@ library
         MyLib
         MHaskell.Micro
         MHaskell.Micro.Parser
+        MHaskell.Micro.Syntax
         MHaskell.Mini
         MHaskell.Mini.Syntax
         MHaskell.Mini.Util
