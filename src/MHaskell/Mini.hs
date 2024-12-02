@@ -1,9 +1,17 @@
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE ViewPatterns #-}
-module MHaskell.Mini where
+module MHaskell.Mini (
+  module MHaskell.Mini.Syntax,
+  module MHaskell.Mini.Util,
+  module MHaskell.Mini.PrettyPrint
+) where
+
+import MHaskell.Mini.Syntax
+import MHaskell.Mini.Util
+import MHaskell.Mini.PrettyPrint
 
 {---- Imports ----}
-
+{-
 import Data.Set (Set)
 import qualified Data.Set as Set
 
@@ -190,3 +198,4 @@ listExpr :: Expr -> Maybe [Expr]
 listExpr ELitNil = return []
 listExpr (EListCons e e') | Just es <- listExpr e' = return (e:es)
 listExpr _ = Nothing
+-}
