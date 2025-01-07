@@ -46,6 +46,8 @@ instance Pretty Expr where
   pretty (a :>=: b)   = pretty a <+> pretty (">=" :: Text) <+> pretty b
   pretty (a :<=: b)   = pretty a <+> pretty ("<=" :: Text) <+> pretty b
   pretty (a ::: b)    = pretty a <+> pretty (":" :: Text) <+> pretty b
+  pretty (a :&&: b)   = pretty a <+> pretty ("&&" :: Text) <+> pretty b
+  pretty (a :||: b)   = pretty a <+> pretty ("||" :: Text) <+> pretty b
   pretty (EBinOp {}) = error "this will never happen"
   pretty (EApp e1 e2@(EBinOp {})) = pretty e1 <+> "(" <> pretty e2 <> ")"
   pretty (EApp e1 (EApp e2 e3)) = pretty e1 <+> "(" <> pretty (EApp e2 e3) <> ")"

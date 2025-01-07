@@ -104,6 +104,11 @@ pattern a :>=: b = EBinOp a Ge b
 pattern (:::) :: Expr -> Expr -> Expr
 pattern a ::: b = EBinOp a Cons b
 
+pattern (:&&:) :: Expr -> Expr -> Expr
+pattern a :&&: b = EBinOp a And b
+
+pattern (:||:) :: Expr -> Expr -> Expr
+pattern a :||: b = EBinOp a Or b
 
 
 {---- Utility Functions ----}

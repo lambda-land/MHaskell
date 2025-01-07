@@ -57,6 +57,8 @@ data BinOp
   | Le
   | Ge
   | Cons
+  | And
+  | Or
   deriving (Show,Eq)
 
 type CaseAlt = (Pattern,Expr)
