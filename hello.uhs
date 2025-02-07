@@ -1,6 +1,5 @@
 
 
-
 inc :: Int -> Int
-inc x = x + 1
+inc y = y + 1
 

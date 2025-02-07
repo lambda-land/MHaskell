@@ -130,16 +130,20 @@ boolLiteral :: Parser Expr
 boolLiteral = (reserved "True" >> return (ELitBool True))
           <|> (reserved "False" >> return (ELitBool False))
 
+variable :: Parser Expr
+variable = do
+  x <- identifier
+  return $ EVar x
 
-binOpP :: BinOp -> (Expr -> Expr -> Expr) -> Parser (Expr -> Expr -> Expr)
-binOpP op f = reservedOp (show op) >> return f
+binOp opf ops assoc = Infix (reservedOp ops >> return (\lhs rhs -> EBinOp lhs opf rhs)) assoc
+
+
 
 type OpTable a = OperatorTable String () Identity a
 
 operatorTable :: OpTable Expr
-operatorTable = [[Infix (reservedOp "+" >> return (\lhs rhs -> EBinOp lhs Add rhs)) AssocLeft
-                 ,Infix (reservedOp "-" >> return (\lhs rhs -> EBinOp lhs Sub rhs)) AssocLeft]
-                ]
+operatorTable = [[binOp Add "+" AssocLeft,binOp Add "+" AssocLeft]
+                ,[binOp Mul "*" AssocLeft,binOp Div "/" AssocLeft]]
 {-
   operatorTable = [
     [Infix (reservedOp ":" >> return (\lhs rhs -> EBinOp lhs Cons rhs)) AssocRight],
@@ -170,30 +174,11 @@ exprTerm = do
 exprFactor :: Parser Expr
 exprFactor = parens expr
           <|> literal
-          -- <|> variable
+          <|> variable
           -- <|> lambdaExpr
           -- <|> letExpr
           -- <|> ifExpr
           -- <|> matchExpr
-
-
-
-
-
-
-typeLit = (reserved "Int" >> return TInt)
-          <|> (reserved "Bool" >> return TBool)
-          <|> (reserved "IntList" >> return TIntList)
-          <|> (reserved "BoolList" >> return TBoolList)
-
-typeFun = do
-  t1 <- typeP
-  reserved "->"
-  t2 <- typeP
-  return $ TFun t1 t2
-
-typeP :: Parser Type
-typeP = typeLit <|> typeFun
 
 funDef = do
   name <- identifier <?> "function name"
@@ -202,14 +187,52 @@ funDef = do
   body <- expr <?> "function body"
   return $ SFunDef name args body
 
+
+typeLit = (reserved "Int" >> return TInt <?> "Int")
+          <|> (reserved "Bool" >> return TBool <?> "Bool")
+          <|> (reserved "IntList" >> return TIntList <?> "IntList")
+          <|> (reserved "BoolList" >> return TBoolList <?> "BoolList")
+
+typeFun = do
+  t1 <- typeP <?> "function type (input)"
+  reserved "->"
+  t2 <- typeP <?> "function type (output)"
+  return $ TFun t1 t2
+
+typeP :: Parser Type
+typeP = (typeLit <?> "lit type") <|> (typeFun <?> "fun type")
+
 typeSig = do
   name <- identifier <?> "function name"
   reservedOp "::"
-  ty <- typeP <?> "function type"
+  -- ty <- typeP <?> "function type"
+  ty <- typeParser <?> "function type"
   return $ STypeSig name ty
 
+-- Type parser
+-- typeSig :: Parser Stmt
+-- typeSig = do
+--   name <- identifier
+--   symbol "::"
+--   ty <- typeParser
+--   return $ STypeSig name ty
+
+-- Type parser
+typeParser :: Parser Type
+typeParser = buildExpressionParser typeOperators typeTerm
+
+typeOperators :: OperatorTable String () Identity Type
+typeOperators = [[Infix ((reservedOp "->" >> return TFun) <?> "type function ->") AssocRight]]
+
+typeTerm :: Parser Type
+typeTerm = parens typeParser
+       <|> ((reserved "Int" >> return TInt) <?> "type Int")
+       <|> ((reserved "Bool" >> return TBool) <?> "type Bool")
+       <|> ((brackets (reserved "Int") >> return TIntList) <?> "type IntList")
+       <|> ((brackets (reserved "Bool") >> return TBoolList) <?> "type BoolList")
+
 stmt :: Parser Stmt
-stmt = funDef <|> typeSig <?> "statement"
+stmt = (try (typeSig <?> "function signature")) <|> (funDef <?> "function def") <?> "statement"
 
 program :: Parser [Stmt]
 program = whiteSpace >> stmts <* eof
