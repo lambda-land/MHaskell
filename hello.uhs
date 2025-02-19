@@ -1,5 +1,9 @@
 
 
 inc :: Int -> Int
-inc y = y + 1
+inc x = x + 1
+
+id x = x
+
+id = \x -> x
 

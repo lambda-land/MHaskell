@@ -135,9 +135,15 @@ variable = do
   x <- identifier
   return $ EVar x
 
+lambdaExpr :: Parser Expr
+lambdaExpr = do
+  reservedOp "\\"
+  x <- identifier
+  reservedOp "->"
+  e <- expr
+  return $ EFun x e
+
 binOp opf ops assoc = Infix (reservedOp ops >> return (\lhs rhs -> EBinOp lhs opf rhs)) assoc
-
-
 
 type OpTable a = OperatorTable String () Identity a
 
@@ -175,7 +181,7 @@ exprFactor :: Parser Expr
 exprFactor = parens expr
           <|> literal
           <|> variable
-          -- <|> lambdaExpr
+          <|> lambdaExpr
           -- <|> letExpr
           -- <|> ifExpr
           -- <|> matchExpr
@@ -183,7 +189,7 @@ exprFactor = parens expr
 funDef = do
   name <- identifier <?> "function name"
   args <- many identifier <?> "function arguments"
-  reservedOp "="
+  reservedOp "=" <?> "function definition"
   body <- expr <?> "function body"
   return $ SFunDef name args body
 
@@ -234,9 +240,14 @@ typeTerm = parens typeParser
 stmt :: Parser Stmt
 stmt = (try (typeSig <?> "function signature")) <|> (funDef <?> "function def") <?> "statement"
 
+stmt' = do
+  whiteSpace
+  ss <- stmt <?> "statement'"
+  whiteSpace
+  return ss
+
 program :: Parser [Stmt]
-program = whiteSpace >> stmts <* eof
-  where stmts = many stmt
+program = many stmt'
 
 
 parseString :: Parser a -> String -> a
