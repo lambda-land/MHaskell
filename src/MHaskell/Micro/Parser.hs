@@ -182,9 +182,16 @@ exprFactor = parens expr
           <|> literal
           <|> variable
           <|> lambdaExpr
+          <|> listExpr
           -- <|> letExpr
           -- <|> ifExpr
           -- <|> matchExpr
+
+listExpr :: Parser Expr
+listExpr = do
+  es <- brackets $ commaSep expr
+  return $ ELitList es
+
 
 funDef = do
   name <- identifier <?> "function name"
@@ -238,7 +245,8 @@ typeTerm = parens typeParser
        <|> ((brackets (reserved "Bool") >> return TBoolList) <?> "type BoolList")
 
 stmt :: Parser Stmt
-stmt = (try (typeSig <?> "function signature")) <|> (funDef <?> "function def") <?> "statement"
+-- stmt = (try (typeSig <?> "function signature")) <|> (funDef <?> "function def") <?> "statement"
+stmt = (try (typeSig <?> "function signature")) <|> (try (funDef <?> "function def")) <?> "statement"
 
 stmt' = do
   whiteSpace
@@ -256,14 +264,16 @@ parseString p s = case parse p "" s of
                     (Right a) -> a
 
 
+{-# NOINLINE parseFile #-}
 parseFile :: Parser a -> String -> a
 parseFile p f = parseString p src
   where !src = unsafePerformIO (readFile f)
 
-
+{-# NOINLINE parseFileIO #-}
 parseFileIO :: Show a => Parser a -> String -> IO ()
 parseFileIO p f = do
-  src <- readFile f
+  -- src <- readFile f
+  let !src = unsafePerformIO (readFile f)
   case parse p "" src of
     (Left e)  -> print e
     (Right a) -> print a

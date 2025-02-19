@@ -1,9 +1,12 @@
 
+intList :: [Int]
+intList = [1, 2, 3]
 
-inc :: Int -> Int
-inc x = x + 1
 
-id x = x
+-- inc :: Int -> Int
+-- inc x = x + 1
 
-id = \x -> x
+-- id x = x
+
+-- id = \x -> x
 
