@@ -135,32 +135,32 @@ endOfStmt = do
 
 
 intLiteral :: Parser Int
-intLiteral = fromIntegral <$> integer
+intLiteral = fromIntegral <$> integer <?> "integer literal"
 
 boolLiteral :: Parser Bool
-boolLiteral = true <|> false
+boolLiteral = true <|> false <?> "boolean literal"
   where true  = reserved "True" >> return True
         false = reserved "False" >> return False
 
 nilLiteral :: Parser ()
-nilLiteral = reserved "[]"
+nilLiteral = reserved "[]" <?> "nil literal"
 
 literalExpr :: Parser Expr
 literalExpr = ELitInt <$> intLiteral 
        <|> ELitBool <$> boolLiteral 
        <|> const ELitNil <$> nilLiteral
-       <?> "literal"
+       <?> "literal expression"
 
 variableExpr :: Parser Expr
-variableExpr = EVar <$> identifier
+variableExpr = EVar <$> identifier <?> "variable expression"
 
 lambdaExpr :: Parser Expr
-lambdaExpr = do
+lambdaExpr = (do
   reservedOp "\\"
   x <- identifier
   reservedOp "->"
   e <- expr
-  return $ EFun x e
+  return $ EFun x e) <?> "lambda expression"
 
 -- atom' :: Parser Expr
 -- atom' = variableExpr
@@ -176,30 +176,37 @@ atom = variableExpr
     <?> "atom"
 
 listExpr :: Parser Expr
-listExpr = do
+listExpr = (do
   es <- brackets $ commaSep expr
-  return $ ELitList es
+  return $ ELitList es) <?> "list expression"
 
 ifExpr :: Parser Expr
-ifExpr = do
+ifExpr = (do
   reserved "if"
   e1 <- expr
   reserved "then"
   e2 <- expr
   reserved "else"
   e3 <- expr
-  return $ EIf e1 e2 e3
+  return $ EIf e1 e2 e3) <?> "if expression"
 
 letExpr :: Parser Expr
-letExpr = do
+letExpr = (do
   reserved "let"
   x <- identifier
   reserved "="
   e1 <- expr
   reserved "in"
   e2 <- expr
-  return $ ELet x e1 e2
+  return $ ELet x e1 e2) <?> "let expression"
 
+appExpr :: Parser Expr
+appExpr = (do
+  es <- many1 termExpr
+  return $ foldl1 EApp es) <?> "application expression"
+
+{-
+-- unused
 exprFactor :: Parser Expr
 exprFactor = parens expr
           <|> literalExpr
@@ -210,6 +217,46 @@ exprFactor = parens expr
           <|> ifExpr
           -- <|> matchExpr
           <?> "factor"
+-}
+
+termExpr :: Parser Expr
+termExpr = parens expr
+        -- <|> appExpr
+        <|> literalExpr
+        <|> variableExpr
+        <|> lambdaExpr
+        <|> listExpr
+        <|> letExpr
+        <|> ifExpr
+        -- <|> matchExpr
+        <?> "term expression"
+
+termExpr' :: Parser Expr
+termExpr' = (try appExpr) <|> termExpr
+
+type OpTable a = OperatorTable String () Identity a
+
+
+-- infixOp :: BinOp -> String -> Assoc -> OpTable Expr
+infixOp :: BinOp -> String -> Assoc -> Operator String () Identity Expr
+infixOp opf ops assoc = Infix (reservedOp ops >> return (\lhs rhs -> EBinOp lhs opf rhs)) assoc
+
+operatorTable :: OpTable Expr
+operatorTable = [[infixOp Mul "*" AssocLeft,infixOp Div "/" AssocLeft]
+                ,[infixOp Add "+" AssocLeft,infixOp Add "+" AssocLeft]
+                ,[infixOp op (binOpPP op) AssocLeft | op <- [Eq,Ne,Lt,Gt,Le,Ge]]
+                ,[infixOp Cons ":" AssocRight]
+                ,[infixOp And "&&" AssocLeft]
+                ,[infixOp Or "||" AssocLeft]]
+
+expr :: Parser Expr
+expr = buildExpressionParser operatorTable termExpr' <?> "expression"
+
+-- expr :: Parser Expr
+-- expr = appExpr
+--     <|> lambdaExpr
+--     <|> (buildExpressionParser operatorTable termExpr <?> "binary operation expression")
+--     <?> "expression"
 -- exprFactor = parens expr
 --           <|> literal
 --           <|> variable
@@ -268,22 +315,22 @@ opTable 2 = choice [pBOExpr op (opTable 3) (opTable 2) | op <- [Eq,Ne,Lt,Le,Gt,G
 opTable 3 = pBOExpr Cons (opTable 4) (opTable 3) <|> opTable 4                                    <?> "operation table 3"
 opTable 4 = choice [pBOExpr op (opTable 5) (opTable 4) | op <- [Add,Sub]] <|> opTable 5           <?> "operation table 4"
 opTable 5 = choice [pBOExpr op (opTable 6) (opTable 5) | op <- [Mul,Div]] <|> opTable 6           <?> "operation table 5"
-opTable _ = exprFactor                                                                            <?> "operation table"
+opTable _ = termExpr                                                                            <?> "operation table"
 
 binOpExpr :: Parser Expr
 binOpExpr = opTable 0 <?> "binary operator expression"
 
-exprApp :: Parser Expr
-exprApp = do
-  es <- many1 exprFactor <?> "application expression"
-  -- lookAhead (try (void stmt) <|> try (eof)) -- might need this
-  return $ foldl1 EApp es
+-- exprApp :: Parser Expr
+-- exprApp = do
+--   es <- many1 exprFactor <?> "application expression"
+--   -- lookAhead (try (void stmt) <|> try (eof)) -- might need this
+--   return $ foldl1 EApp es
 
-expr :: Parser Expr
-expr = binOpExpr
-    <|> exprApp
-    <|> exprFactor
-    <?> "expression"
+-- expr :: Parser Expr
+-- expr = binOpExpr
+--     <|> exprApp
+--     <|> exprFactor
+--     <?> "expression"
 
 
 
@@ -379,3 +426,23 @@ parseFileIO p f = do
     (Left e)  -> print e
     (Right a) -> print a
 
+exprTests :: [String]
+exprTests
+  = [ "1"
+    , "True"
+    , "False"
+    , "[]"
+    , "[1,2,3]"
+    , "if True then 1 else 2"
+    , "let x = 1 in x"
+    , "let x = 1 in let y = 2 in x + y"
+    , "let x = 1 in let y = 2 in let z = 3 in x + y + z"
+    , "1 + 2"
+    , "1 + 2 * 3"
+    , "f x y"
+    ]
+
+{-# NOINLINE runExprTests #-}
+-- runExprTests :: [Expr]
+runExprTests :: IO ()
+runExprTests = mapM_ print $ map (parseString expr) exprTests
