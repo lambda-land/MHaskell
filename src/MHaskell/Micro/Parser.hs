@@ -168,6 +168,7 @@ lambdaExpr = do
 --     <|> parens atom'
 --     <?> "atom'"
 
+-- unused
 atom :: Parser Expr
 atom = variableExpr
     <|> literalExpr
@@ -179,12 +180,35 @@ listExpr = do
   es <- brackets $ commaSep expr
   return $ ELitList es
 
+ifExpr :: Parser Expr
+ifExpr = do
+  reserved "if"
+  e1 <- expr
+  reserved "then"
+  e2 <- expr
+  reserved "else"
+  e3 <- expr
+  return $ EIf e1 e2 e3
+
+letExpr :: Parser Expr
+letExpr = do
+  reserved "let"
+  x <- identifier
+  reserved "="
+  e1 <- expr
+  reserved "in"
+  e2 <- expr
+  return $ ELet x e1 e2
+
 exprFactor :: Parser Expr
 exprFactor = parens expr
           <|> literalExpr
           <|> variableExpr
           <|> lambdaExpr
           <|> listExpr
+          <|> letExpr
+          <|> ifExpr
+          -- <|> matchExpr
           <?> "factor"
 -- exprFactor = parens expr
 --           <|> literal
