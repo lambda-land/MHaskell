@@ -37,6 +37,7 @@ data BinOp
   | Sub
   | Div
   | Eq
+  | Ne
   | Lt
   | Gt
   | Le
@@ -45,6 +46,30 @@ data BinOp
   | And
   | Or
   deriving (Show,Eq)
+
+binOpPrec :: 
+
+instance Ord BinOp where
+  o1 <= o2 | o1 == o2 = True
+
+
+allBinOps :: [BinOp]
+allBinOps = [Add,Mul,Sub,Div,Eq,Ne,Lt,Gt,Le,Ge,Cons,And,Or]
+
+binOpPP :: BinOp -> String
+binOpPP Add = "+"
+binOpPP Mul = "*"
+binOpPP Sub = "-"
+binOpPP Div = "/"
+binOpPP Eq = "=="
+binOpPP Ne = "!="
+binOpPP Lt = "<"
+binOpPP Gt = ">"
+binOpPP Le = "<="
+binOpPP Ge = ">="
+binOpPP Cons = ":"
+binOpPP And = "&&"
+binOpPP Or = "||"
 
 type CaseAlt = (Pattern,Expr)
 

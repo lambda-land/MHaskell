@@ -116,13 +116,13 @@ commaSep = Tok.commaSep lexer
 commaSep1 :: Parser a -> Parser [a]
 commaSep1 = Tok.commaSep1 lexer
 
-binOp opf ops assoc = Infix (reservedOp ops >> return (\lhs rhs -> EBinOp lhs opf rhs)) assoc
+-- binOp opf ops assoc = Infix (reservedOp ops >> return (\lhs rhs -> EBinOp lhs opf rhs)) assoc
 
-type OpTable a = OperatorTable String () Identity a
+-- type OpTable a = OperatorTable String () Identity a
 
-operatorTable :: OpTable Expr
-operatorTable = [[binOp Add "+" AssocLeft,binOp Add "+" AssocLeft]
-                ,[binOp Mul "*" AssocLeft,binOp Div "/" AssocLeft]]
+-- operatorTable :: OpTable Expr
+-- operatorTable = [[binOp Add "+" AssocLeft,binOp Add "+" AssocLeft]
+--                 ,[binOp Mul "*" AssocLeft,binOp Div "/" AssocLeft]]
 
 eol :: Parser ()
 eol = do
@@ -219,14 +219,69 @@ exprFactor = parens expr
 --           -- <|> ifExpr
 --           -- <|> matchExpr
 
+{-
+--          EXPERIMENTAL
+-- experiment (don't use)
+binOpSemP :: Parser (Expr -> Expr -> Expr)
+binOpSemP = do
+  op <- binOp
+  return $ \e1 e2 -> EBinOp e1 op e2
+
+-- experiment (don't use)
+binOpSem :: Parser (Parser Expr -> Parser Expr -> Parser Expr)
+binOpSem = return binOpEx
+  where binOpEx p1 p2 = do
+          e1 <- p1
+          f <- binOpSemP
+          e2 <- p2
+          return $ f e1 e2
+
+binOpExpr' :: Parser Expr -> Parser Expr -> Parser Expr
+binOpExpr' p1 p2 = do
+  e1 <- p1
+  op <- binOp
+  e2 <- p2
+  return $ EBinOp e1 op e2
+-}
+
+
+pBinOp :: BinOp -> Parser BinOp
+pBinOp op = reserved (binOpPP op) >> return op <?> ("binary operator " ++ binOpPP op)
+
+binOp :: Parser BinOp
+binOp = choice (map pBinOp binOps) <?> "binary operator"
+  where binOps = [Add,Mul,Sub,Div,Eq,Ne,Lt,Gt,Le,Ge,Cons,And,Or]
+
+-- Parse binary operator expression
+pBOExpr :: BinOp -> Parser Expr -> Parser Expr -> Parser Expr
+pBOExpr op p1 p2 = do
+  e1 <- p1
+  _ <- pBinOp op
+  e2 <- p2
+  return $ EBinOp e1 op e2
+
+  
+opTable :: Int -> Parser Expr
+opTable 0 = pBOExpr Or (opTable 1) (opTable 0) <|> opTable 1                                      <?> "operation table 0"
+opTable 1 = pBOExpr And (opTable 2) (opTable 1) <|> opTable 2                                     <?> "operation table 1"
+opTable 2 = choice [pBOExpr op (opTable 3) (opTable 2) | op <- [Eq,Ne,Lt,Le,Gt,Ge]] <|> opTable 3 <?> "operation table 2"
+opTable 3 = pBOExpr Cons (opTable 4) (opTable 3) <|> opTable 4                                    <?> "operation table 3"
+opTable 4 = choice [pBOExpr op (opTable 5) (opTable 4) | op <- [Add,Sub]] <|> opTable 5           <?> "operation table 4"
+opTable 5 = choice [pBOExpr op (opTable 6) (opTable 5) | op <- [Mul,Div]] <|> opTable 6           <?> "operation table 5"
+opTable _ = exprFactor                                                                            <?> "operation table"
+
+binOpExpr :: Parser Expr
+binOpExpr = opTable 0 <?> "binary operator expression"
+
 exprApp :: Parser Expr
 exprApp = do
-  es <- many1 exprFactor
+  es <- many1 exprFactor <?> "application expression"
   -- lookAhead (try (void stmt) <|> try (eof)) -- might need this
   return $ foldl1 EApp es
 
 expr :: Parser Expr
-expr = exprApp
+expr = binOpExpr
+    <|> exprApp
     <|> exprFactor
     <?> "expression"
 
