@@ -180,10 +180,11 @@ listExpr = do
   return $ ELitList es
 
 exprFactor :: Parser Expr
-exprFactor = atom
+exprFactor = parens expr
+          <|> literalExpr
+          <|> variableExpr
           <|> lambdaExpr
           <|> listExpr
-          <|> parens expr
           <?> "factor"
 -- exprFactor = parens expr
 --           <|> literal
@@ -196,13 +197,13 @@ exprFactor = atom
 
 exprApp :: Parser Expr
 exprApp = do
-  es <- many exprFactor
+  es <- many1 exprFactor
   -- lookAhead (try (void stmt) <|> try (eof)) -- might need this
   return $ foldl1 EApp es
 
 expr :: Parser Expr
-expr = exprFactor
-    <|> exprApp
+expr = exprApp
+    <|> exprFactor
     <?> "expression"
 
 
