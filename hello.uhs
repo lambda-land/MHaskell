@@ -1,6 +1,14 @@
 
 intList :: [Int]
-intList = [1, 2, 3]
+intList = 1
+intList = 2
+
+intList = []
+
+-- intList = [1, 2, 3]
+
+-- empty :: [Int]
+-- empty = []
 
 
 -- inc :: Int -> Int

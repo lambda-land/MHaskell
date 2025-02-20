@@ -7,13 +7,14 @@ import qualified Text.Parsec.Token as Tok
 
 import Text.Parsec ((<|>),(<?>),eof)
 import Text.Parsec.Expr
-
+import Text.Parsec.Char
 
 import Data.Functor.Identity (Identity)
 
 import MHaskell.Micro.Syntax
 
 import System.IO.Unsafe (unsafePerformIO)
+import Control.Monad (void)
 
 
 languageDef :: Tok.LanguageDef ()
@@ -115,25 +116,43 @@ commaSep = Tok.commaSep lexer
 commaSep1 :: Parser a -> Parser [a]
 commaSep1 = Tok.commaSep1 lexer
 
+binOp opf ops assoc = Infix (reservedOp ops >> return (\lhs rhs -> EBinOp lhs opf rhs)) assoc
 
-literal :: Parser Expr
-literal = intLiteral <|> boolLiteral
-                                    -- <|> nilLiteral
-                                    -- <|> listLiteral
+type OpTable a = OperatorTable String () Identity a
 
-intLiteral :: Parser Expr
-intLiteral = do
-  n <- integer
-  return $ ELitInt (fromIntegral n)
+operatorTable :: OpTable Expr
+operatorTable = [[binOp Add "+" AssocLeft,binOp Add "+" AssocLeft]
+                ,[binOp Mul "*" AssocLeft,binOp Div "/" AssocLeft]]
 
-boolLiteral :: Parser Expr
-boolLiteral = (reserved "True" >> return (ELitBool True))
-          <|> (reserved "False" >> return (ELitBool False))
+eol :: Parser ()
+eol = do
+  _ <- char '\n'
+  return ()
 
-variable :: Parser Expr
-variable = do
-  x <- identifier
-  return $ EVar x
+endOfStmt :: Parser ()
+endOfStmt = do
+  void endOfLine
+
+
+intLiteral :: Parser Int
+intLiteral = fromIntegral <$> integer
+
+boolLiteral :: Parser Bool
+boolLiteral = true <|> false
+  where true  = reserved "True" >> return True
+        false = reserved "False" >> return False
+
+nilLiteral :: Parser ()
+nilLiteral = reserved "[]"
+
+literalExpr :: Parser Expr
+literalExpr = ELitInt <$> intLiteral 
+       <|> ELitBool <$> boolLiteral 
+       <|> const ELitNil <$> nilLiteral
+       <?> "literal"
+
+variableExpr :: Parser Expr
+variableExpr = EVar <$> identifier
 
 lambdaExpr :: Parser Expr
 lambdaExpr = do
@@ -143,54 +162,50 @@ lambdaExpr = do
   e <- expr
   return $ EFun x e
 
-binOp opf ops assoc = Infix (reservedOp ops >> return (\lhs rhs -> EBinOp lhs opf rhs)) assoc
+-- atom' :: Parser Expr
+-- atom' = variableExpr
+--     <|> literalExpr
+--     <|> parens atom'
+--     <?> "atom'"
 
-type OpTable a = OperatorTable String () Identity a
-
-operatorTable :: OpTable Expr
-operatorTable = [[binOp Add "+" AssocLeft,binOp Add "+" AssocLeft]
-                ,[binOp Mul "*" AssocLeft,binOp Div "/" AssocLeft]]
-{-
-  operatorTable = [
-    [Infix (reservedOp ":" >> return (\lhs rhs -> EBinOp lhs Cons rhs)) AssocRight],
-    
-    [Infix (reservedOp "*" >> return (\lhs rhs -> EBinOp lhs Mul rhs)) AssocLeft,
-    Infix (reservedOp "/" >> return (\lhs rhs -> EBinOp lhs Div rhs)) AssocLeft],
-
-    [Infix (reservedOp "+" >> return (\lhs rhs -> EBinOp lhs Add rhs)) AssocLeft,
-    Infix (reservedOp "-" >> return (\lhs rhs -> EBinOp lhs Sub rhs)) AssocLeft],
-    
-    [Infix (reservedOp "==" >> return (\lhs rhs -> EBinOp lhs Eq rhs)) AssocNone,
-    Infix (reservedOp "<" >> return (\lhs rhs -> EBinOp lhs Lt rhs)) AssocNone,
-    Infix (reservedOp ">" >> return (\lhs rhs -> EBinOp lhs Gt rhs)) AssocNone,
-    Infix (reservedOp "<=" >> return (\lhs rhs -> EBinOp lhs Le rhs)) AssocNone,
-    Infix (reservedOp ">=" >> return (\lhs rhs -> EBinOp lhs Ge rhs)) AssocNone]
-    ]
--}
-
-
-expr :: Parser Expr
-expr = buildExpressionParser operatorTable exprTerm
-
-exprTerm :: Parser Expr
-exprTerm = do
-  es <- many1 exprFactor
-  return $ foldl1 EApp es
-
-exprFactor :: Parser Expr
-exprFactor = parens expr
-          <|> literal
-          <|> variable
-          <|> lambdaExpr
-          <|> listExpr
-          -- <|> letExpr
-          -- <|> ifExpr
-          -- <|> matchExpr
+atom :: Parser Expr
+atom = variableExpr
+    <|> literalExpr
+    <|> parens expr
+    <?> "atom"
 
 listExpr :: Parser Expr
 listExpr = do
   es <- brackets $ commaSep expr
   return $ ELitList es
+
+exprFactor :: Parser Expr
+exprFactor = atom
+          <|> lambdaExpr
+          <|> listExpr
+          <|> parens expr
+          <?> "factor"
+-- exprFactor = parens expr
+--           <|> literal
+--           <|> variable
+--           <|> lambdaExpr
+--           <|> listExpr
+--           -- <|> letExpr
+--           -- <|> ifExpr
+--           -- <|> matchExpr
+
+exprApp :: Parser Expr
+exprApp = do
+  es <- many exprFactor
+  -- lookAhead (try (void stmt) <|> try (eof)) -- might need this
+  return $ foldl1 EApp es
+
+expr :: Parser Expr
+expr = exprFactor
+    <|> exprApp
+    <?> "expression"
+
+
 
 
 funDef = do
@@ -245,14 +260,20 @@ typeTerm = parens typeParser
        <|> ((brackets (reserved "Bool") >> return TBoolList) <?> "type BoolList")
 
 stmt :: Parser Stmt
--- stmt = (try (typeSig <?> "function signature")) <|> (funDef <?> "function def") <?> "statement"
-stmt = (try (typeSig <?> "function signature")) <|> (try (funDef <?> "function def")) <?> "statement"
+stmt = do
+  whiteSpace
+  choice [ try (typeSig <?> "function signature")
+         , funDef <?> "function def"
+         ] <?> "statement"
+-- stmt = ((try (typeSig <?> "function signature")) <|> (funDef <?> "function def")) <?> "statement"
+-- stmt = (try (typeSig <?> "function signature")) <|> (try (funDef <?> "function def")) <?> "statement"
 
-stmt' = do
-  whiteSpace
-  ss <- stmt <?> "statement'"
-  whiteSpace
-  return ss
+-- stmt' = do
+--   whiteSpace
+--   ss <- (stmt << whiteSpace) <?> "statement'"
+--   whiteSpace
+--   return ss
+stmt' = stmt
 
 program :: Parser [Stmt]
 program = many stmt'
