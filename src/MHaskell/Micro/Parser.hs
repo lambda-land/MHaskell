@@ -236,6 +236,7 @@ termExpr' = (try appExpr) <|> termExpr
 
 type OpTable a = OperatorTable String () Identity a
 
+trying to integrate buildExpressionParser with appExpr. For some reason, the two won't work together. need to figure out!
 
 -- infixOp :: BinOp -> String -> Assoc -> OpTable Expr
 infixOp :: BinOp -> String -> Assoc -> Operator String () Identity Expr
