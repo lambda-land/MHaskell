@@ -1,5 +1,10 @@
 module MHaskell.Micro.Syntax where
 
+import Text.Read (Read)
+import qualified Text.Read as Read
+import Data.Maybe (listToMaybe)
+
+
 type Name = String
 
 type Prog = [Stmt]
@@ -47,14 +52,17 @@ data BinOp
   | Or
   deriving (Show,Eq)
 
-binOpPrec :: 
+type CaseAlt = (Pattern,Expr)
 
-instance Ord BinOp where
-  o1 <= o2 | o1 == o2 = True
+data Pattern
+  = PAny
+  | PVar Name
+  | PLitInt Int
+  | PLitBool Bool
+  | PLitNil
+  | PListCons Pattern Pattern
+  deriving (Show,Eq)
 
-
-allBinOps :: [BinOp]
-allBinOps = [Add,Mul,Sub,Div,Eq,Ne,Lt,Gt,Le,Ge,Cons,And,Or]
 
 binOpPP :: BinOp -> String
 binOpPP Add = "+"
@@ -71,13 +79,29 @@ binOpPP Cons = ":"
 binOpPP And = "&&"
 binOpPP Or = "||"
 
-type CaseAlt = (Pattern,Expr)
+allBinOps :: [BinOp]
+allBinOps = [Add,Mul,Sub,Div,Eq,Ne,Lt,Gt,Le,Ge,Cons,And,Or]
 
-data Pattern
-  = PAny
-  | PVar Name
-  | PLitInt Int
-  | PLitBool Bool
-  | PLitNil
-  | PListCons Pattern Pattern
-  deriving (Show,Eq)
+binOpAssoc :: [(BinOp, String)]
+binOpAssoc = [(op,binOpPP op) | op <- allBinOps]
+
+allBinOpAssoc :: ([(BinOp, String)], [(String, BinOp)])
+allBinOpAssoc = (binOpAssoc, map swap binOpAssoc)
+  where swap (a,b) = (b,a)
+
+-- strToBinOp :: String -> Maybe BinOp
+-- strToBinOp s = lookup s $ map swap allBinOpAssoc
+--   where swap (a,b) = (b,a)
+--         -- find :: (a -> Bool) -> [a] -> Maybe a
+--         -- find p = listToMaybe . filter p
+
+instance Read BinOp where
+  readPrec :: Read.ReadPrec BinOp
+  readPrec = do 
+    Read.Symbol s <- Read.lexP
+    case lookup s (snd allBinOpAssoc) of
+      Just op -> return op
+      Nothing -> Read.pfail
+
+strToBinOp :: String -> Maybe BinOp
+strToBinOp s = Read.readMaybe s :: Maybe BinOp
