@@ -16,7 +16,7 @@ cube x = x * x * x
 
 id = \x -> x
 
-squareTimes2 x = (x * x) + (x * x)
+squareTimes2 x = x * x + x * x
 
 -- twice f x = f (f x)
 
