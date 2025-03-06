@@ -826,6 +826,15 @@ parseFileIO p f = do
           state <- getState
           return (input,state)
 
+{-# NOINLINE parseFileIOProgram #-}
+parseFileIOProgram :: Show a => Parser [a] -> String -> IO ()
+parseFileIOProgram p f = do
+  -- src <- readFile f
+  let !src = unsafePerformIO (readFile f)
+  case parse p "" src of
+    (Left e)  -> print e -- throw src e
+    (Right a) -> mapM_ putStrLn $ map show a
+
 exprTests :: [String]
 exprTests
   = [ "1"
