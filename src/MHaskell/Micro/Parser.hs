@@ -4,8 +4,11 @@ import Text.Parsec as P
 import qualified Text.Parsec.Language as Lang
 import Text.Parsec.String (Parser)
 import qualified Text.Parsec.Token as Tok
--- import qualified Text.Parsec.Token as Token
--- import Text.Parsec.Expr (Assoc(..), Operator(..), buildExpressionParser)
+import qualified Text.Parsec.Token as Token
+import Text.Parsec.Expr
+    ( buildExpressionParser,
+      Assoc(AssocRight, AssocLeft, AssocNone),
+      Operator(Infix) )
 
 -- import Text.Parsec ((<|>),(<?>),eof)
 -- import Text.Parsec.Expr
@@ -152,6 +155,11 @@ parseTypeAtom =
   <|> (reserved "Bool" >> return TBool)
   <|> parens parseType
 
+parseBinOpSem :: BinOp -> Parser (Expr -> Expr -> Expr)
+parseBinOpSem bo = do
+  reservedOp (binOpPP bo) <?> ("binary op '" ++ (binOpPP bo) ++ "'")
+  return $ \x y -> EBinOp x bo y
+
 parseBinOp :: Parser BinOp
 parseBinOp = choices 
   [ operator "+"  >> return Add
@@ -164,25 +172,69 @@ parseBinOp = choices
   -- ... other operators as needed
   ] <?> "operator"
 
+-- 5. Infix binary operations (left-associative)
+parseOpChain :: Parser Expr
+parseOpChain = parseExpr `chainl1` opParser
+  where opParser = do
+          op <- parseBinOp    -- parse a BinOp
+          return (\e1 e2 -> EBinOp e1 op e2)
+
 -- Forward declarations to allow mutual recursion if needed
 parseExpr :: Parser Expr
-parseExpr = choices [parseExprAtom,parseIf, parseLambda, parseLet, parseOpChain]
+-- parseExpr = choices [parseExprAtom,parseIf, parseLambda, parseLet, parseOpChain,parseExprAtom]
+-- parseExpr = choices 
+--   [ parseOpChain <?> "binary operation"
+--   , parseExprAtom <?> "atom"
+--   ]
+parseExpr = buildExpressionParser opTable (parseTerm) <?> "expression"
+
+
+parseTerm :: Parser Expr
+parseTerm = choices
+  [ parseIf          <?> "if condition"
+  , parseLambda      <?> "lambda abstraction"
+  , parseLet         <?> "let expression"
+  , parseExprAtom    <?> "expression atom"
+  , parens parseExpr <?> "parens expression"
+  ]
 
 -- 1. Atomic expressions and function application
 parseExprAtom :: Parser Expr
 parseExprAtom = choices
-  [ EInt <$> int            -- parse an integer literal into an EInt constructor
-  , EBool True  <$ reserved "True"   -- boolean literal
-  , EBool False <$ reserved "False"
-  , EVar <$> identifier         -- variable
-  , parens parseExpr            -- parenthesized sub-expression
+  [ EInt <$> int                    <?> "literal integer"
+  , EBool True  <$ reserved "True"  <?> "literal boolean True"
+  , EBool False <$ reserved "False" <?> "literal boolean False"
+  , EVar <$> identifier             <?> "variable"
   ] <?> "atomic expression"
 
 parseApp :: Parser Expr
-parseApp = do 
-  atoms <- some parseExprAtom    -- one or more atomic expressions
-  -- If more than one, fold left into function application nodes
-  return $ foldl1 EApp atoms
+parseApp = do
+  func <- parseTerm
+  args <- many parseTerm
+  return $ foldl EApp func args
+-- parseApp = do 
+--   atoms <- some parseExprAtom    -- one or more atomic expressions
+--   -- If more than one, fold left into function application nodes
+--   return $ foldl1 EApp atoms
+
+
+
+
+-- Define helper to build an infix operator parser
+
+
+-- Operator precedence table (list of lists). Higher in the list = higher precedence.
+
+-- opTable :: 
+opTable = [ [ infixOp Mul AssocLeft                -- multiplication (if included)
+            , infixOp Div AssocLeft ]              -- division (if included)
+          , [ infixOp Add AssocLeft
+            , infixOp Sub AssocLeft ]
+          , [ infixOp Eq  AssocNone ]              -- equality, non-associative
+          , [ infixOp And AssocRight ]
+          , [ infixOp Or  AssocRight ]
+          ]
+  where infixOp bo assoc = Infix (parseBinOpSem bo) assoc
 
 -- 2. If-then-else expression
 parseIf :: Parser Expr
@@ -215,12 +267,11 @@ parseLet = do
   body <- parseExpr <?> "in expression"
   return $ ELet var val body
 
--- 5. Infix binary operations (left-associative)
-parseOpChain :: Parser Expr
-parseOpChain = parseApp `chainl1` opParser
-  where opParser = do
-          op <- parseBinOp    -- parse a BinOp
-          return (\e1 e2 -> EBinOp e1 op e2)
+
+-- parseOpChain = parseApp `chainl1` opParser
+--   where opParser = do
+--           op <- parseBinOp    -- parse a BinOp
+--           return (\e1 e2 -> EBinOp e1 op e2)
 
 
 parsePattern :: Parser Pattern

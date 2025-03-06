@@ -4,3 +4,9 @@ id x = x
 id x = x
 
 id = 1
+
+id = 3
+
+
+id x = x + x
+
