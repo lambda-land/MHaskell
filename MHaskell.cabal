@@ -69,6 +69,7 @@ library
         MHaskell.Mini.Util
         MHaskell.Mini.PrettyPrint
         MHaskell.MiniPlus
+        MHaskell.Micro.Playground
     
 
 

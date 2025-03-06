@@ -147,7 +147,10 @@ choices ps = lexeme $ choices' (map lexeme ps)
 
 parseProgram :: Parser [Stmt]
 -- parseProgram = many (try (whiteSpace >> lexeme parseStmt)) <* eof
-parseProgram = many (whiteSpace >> lexeme parseStmt)
+parseProgram = do
+  stmts <- many (whiteSpace *> try (lexeme parseStmt))
+  eof
+  return stmts
 
 -- parseProgram = whiteSpace >> manyTill (try $ lexeme parseStmt) (try eof)
 -- parseProgram = whiteSpace >> many (try (try whiteSpace >> parseStmt))
@@ -225,7 +228,7 @@ parseExprAtom = choices
 
 parseApp :: Parser Expr
 parseApp = do
-  es <- many1 parseTerm
+  es <- manyTill parseTerm (try (void $ oneOf "\n\r") <|> eof)
   return $ foldl1 EApp es
 
 -- parseApp = do 
