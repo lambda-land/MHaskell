@@ -146,10 +146,11 @@ choices ps = lexeme $ choices' (map lexeme ps)
         choices' (p:ps) = try p <|> choices' ps
 
 parseProgram :: Parser [Stmt]
-parseProgram = whiteSpace >> many parseStmt <* eof
+-- parseProgram = many (try (whiteSpace >> lexeme parseStmt)) <* eof
+parseProgram = many (whiteSpace >> lexeme parseStmt)
 
 -- parseProgram = whiteSpace >> manyTill (try $ lexeme parseStmt) (try eof)
--- parseProgram = whiteSpace >> many (parseStmt) <* eof
+-- parseProgram = whiteSpace >> many (try (try whiteSpace >> parseStmt))
 
 -- parseProgram :: Parser [Stmt]
 -- parseProgram = do
