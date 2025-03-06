@@ -32,6 +32,13 @@ languageDef = Lang.haskellDef
 --   , Tok.identLetter = alphaNum <|> oneOf "_'"
 --   }
 
+reservedOpNames :: [String]
+reservedOpNames = Tok.reservedOpNames languageDef
+
+reservedNames :: [String]
+reservedNames = Tok.reservedNames languageDef
+
+
 lexer :: Tok.TokenParser st
 lexer = Tok.makeTokenParser languageDef
 
@@ -122,14 +129,21 @@ commaSep = Tok.commaSep lexer
 commaSep1 :: Parser a -> Parser [a]
 commaSep1 = Tok.commaSep1 lexer
 
+contents :: Parser a -> Parser a
+contents p = do
+  Tok.whiteSpace lexer
+  r <- p
+  eof
+  return r
 
 int :: Parser Int
 int = fromIntegral <$> integer
 
 choices :: [Parser a] -> Parser a
-choices [] = error "need at least one parser option for 'choices'."
-choices [p] = p
-choices (p:ps) = try p <|> choices ps
+choices ps = lexeme $ choices' (map lexeme ps)
+  where choices' [] = error "need at least one parser option for 'choices'."
+        choices' [p] = p
+        choices' (p:ps) = try p <|> choices' ps
 
 parseProgram :: Parser [Stmt]
 parseProgram = whiteSpace >> many parseStmt <* eof
@@ -186,8 +200,10 @@ parseExpr :: Parser Expr
 --   [ parseOpChain <?> "binary operation"
 --   , parseExprAtom <?> "atom"
 --   ]
-parseExpr = buildExpressionParser opTable (parseTerm) <?> "expression"
-
+parseExpr = buildExpressionParser opTable (parseTerm') <?> "expression"
+  where parseTerm' :: Parser Expr
+        parseTerm' = choices
+          [ parens parseExpr, parseApp, parseTerm, parseExprAtom ]
 
 parseTerm :: Parser Expr
 parseTerm = choices
@@ -195,7 +211,6 @@ parseTerm = choices
   , parseLambda      <?> "lambda abstraction"
   , parseLet         <?> "let expression"
   , parseExprAtom    <?> "expression atom"
-  , parens parseExpr <?> "parens expression"
   ]
 
 -- 1. Atomic expressions and function application
@@ -209,9 +224,9 @@ parseExprAtom = choices
 
 parseApp :: Parser Expr
 parseApp = do
-  func <- parseTerm
-  args <- many parseTerm
-  return $ foldl EApp func args
+  es <- many1 parseTerm
+  return $ foldl1 EApp es
+
 -- parseApp = do 
 --   atoms <- some parseExprAtom    -- one or more atomic expressions
 --   -- If more than one, fold left into function application nodes
@@ -301,7 +316,7 @@ parseDefinition = do
   vars <- many (identifier <?> "function argument")
   -- vars <- manyTill (try identifier <?> "function argument") (try $ reservedOp "=")
   _ <- reservedOp "=" <?> "function def '='"                     -- if an '=' follows, it's a definition
-  rhs <- parseExpr <?> "right-hand side of '='"
+  rhs <- (try parseExpr) <?> "right-hand side of '='"
   return $ SFunDef fname vars rhs          -- SDef or similar constructor for definitions
 
 -- parseTypeDefinition :: Parser Stmt
