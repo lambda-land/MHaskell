@@ -4,20 +4,23 @@ import Text.Parsec as P
 import qualified Text.Parsec.Language as Lang
 import Text.Parsec.String (Parser)
 import qualified Text.Parsec.Token as Tok
+-- import qualified Text.Parsec.Token as Token
+-- import Text.Parsec.Expr (Assoc(..), Operator(..), buildExpressionParser)
 
-import Text.Parsec ((<|>),(<?>),eof)
-import Text.Parsec.Expr
-import Text.Parsec.Char
+-- import Text.Parsec ((<|>),(<?>),eof)
+-- import Text.Parsec.Expr
+-- import Text.Parsec.Char
 
-import Data.Functor.Identity (Identity)
+-- import Data.Functor.Identity (Identity)
 
 import MHaskell.Micro.Syntax
 
 import System.IO.Unsafe (unsafePerformIO)
 import Control.Monad (void)
+import Control.Applicative (some)
 
 
-languageDef :: Tok.LanguageDef ()
+languageDef :: Tok.LanguageDef st
 languageDef = Lang.haskellDef
 -- languageDef = haskellStyle
 --   { Tok.reservedNames = ["Int", "Bool", "if", "then", "else", "let", "in", "match", "with", "True", "False", "Nil"]
@@ -26,7 +29,7 @@ languageDef = Lang.haskellDef
 --   , Tok.identLetter = alphaNum <|> oneOf "_'"
 --   }
 
-lexer :: Tok.TokenParser ()
+lexer :: Tok.TokenParser st
 lexer = Tok.makeTokenParser languageDef
 
 identifier :: Parser String
@@ -116,6 +119,338 @@ commaSep = Tok.commaSep lexer
 commaSep1 :: Parser a -> Parser [a]
 commaSep1 = Tok.commaSep1 lexer
 
+
+int :: Parser Int
+int = fromIntegral <$> integer
+
+choices :: [Parser a] -> Parser a
+choices [] = error "need at least one parser option for 'choices'."
+choices [p] = p
+choices (p:ps) = try p <|> choices ps
+
+parseProgram :: Parser [Stmt]
+parseProgram = whiteSpace >> many parseStmt <* eof
+
+-- parseProgram = whiteSpace >> manyTill (try $ lexeme parseStmt) (try eof)
+-- parseProgram = whiteSpace >> many (parseStmt) <* eof
+
+-- parseProgram :: Parser [Stmt]
+-- parseProgram = do
+--   whiteSpace
+
+
+parseType :: Parser Type
+parseType = parseTypeAtom `chainr1` arrowType <?> "type"
+  where
+    arrowType = do 
+      reservedOp "->"
+      return TFun             -- TFun combines two Type values into a function type
+
+parseTypeAtom :: Parser Type
+parseTypeAtom = 
+      (reserved "Int"  >> return TInt)
+  <|> (reserved "Bool" >> return TBool)
+  <|> parens parseType
+
+parseBinOp :: Parser BinOp
+parseBinOp = choices 
+  [ operator "+"  >> return Add
+  , operator "-"  >> return Sub
+  , operator "*"  >> return Mul
+  , operator "/"  >> return Div
+  , operator "&&" >> return And
+  , operator "||" >> return Or
+  , operator "==" >> return Eq
+  -- ... other operators as needed
+  ] <?> "operator"
+
+-- Forward declarations to allow mutual recursion if needed
+parseExpr :: Parser Expr
+parseExpr = choices [parseExprAtom,parseIf, parseLambda, parseLet, parseOpChain]
+
+-- 1. Atomic expressions and function application
+parseExprAtom :: Parser Expr
+parseExprAtom = choices
+  [ EInt <$> int            -- parse an integer literal into an EInt constructor
+  , EBool True  <$ reserved "True"   -- boolean literal
+  , EBool False <$ reserved "False"
+  , EVar <$> identifier         -- variable
+  , parens parseExpr            -- parenthesized sub-expression
+  ] <?> "atomic expression"
+
+parseApp :: Parser Expr
+parseApp = do 
+  atoms <- some parseExprAtom    -- one or more atomic expressions
+  -- If more than one, fold left into function application nodes
+  return $ foldl1 EApp atoms
+
+-- 2. If-then-else expression
+parseIf :: Parser Expr
+parseIf = do
+  reserved "if"
+  cond <- parseExpr <?> "condition"
+  reserved "then"
+  tru <- parseExpr <?> "expression after then"
+  reserved "else"
+  fls <- parseExpr <?> "expression after else"
+  return $ EIf cond tru fls
+
+-- 3. Lambda expression
+parseLambda :: Parser Expr
+parseLambda = do
+  symbol "\\"                      -- lambda starts with backslash
+  var <- identifier <?> "variable"
+  reservedOp "->"
+  body <- parseExpr <?> "lambda body"
+  return $ EFun var body
+
+-- 4. (Optional) Let-in expression (if included in language)
+parseLet :: Parser Expr
+parseLet = do
+  reserved "let"
+  var <- identifier <?> "variable"
+  reservedOp "="
+  val <- parseExpr <?> "definition body"
+  reserved "in"
+  body <- parseExpr <?> "in expression"
+  return $ ELet var val body
+
+-- 5. Infix binary operations (left-associative)
+parseOpChain :: Parser Expr
+parseOpChain = parseApp `chainl1` opParser
+  where opParser = do
+          op <- parseBinOp    -- parse a BinOp
+          return (\e1 e2 -> EBinOp e1 op e2)
+
+
+parsePattern :: Parser Pattern
+parsePattern = choices
+  [ underscorePattern
+  , PInt <$> int      -- literal int pattern
+  , PBool True  <$ reserved "True"
+  , PBool False <$ reserved "False"
+  , PVar <$> identifier
+  , parens consPattern
+  , parens parsePattern
+  ] <?> "pattern"
+  where
+    underscorePattern = symbol "_" >> return PAny
+    consPattern = do
+      x <- parsePattern
+      reservedOp ":"
+      xs <- parsePattern
+      return $ PListCons x xs
+
+parseStmt :: Parser Stmt
+parseStmt = parseDefinition <?> "statement"
+
+parseDefinition :: Parser Stmt
+parseDefinition = do
+  fname <- identifier <?> "function name"
+  vars <- many (identifier <?> "function argument")
+  -- vars <- manyTill (try identifier <?> "function argument") (try $ reservedOp "=")
+  _ <- reservedOp "=" <?> "function def '='"                     -- if an '=' follows, it's a definition
+  rhs <- parseExpr <?> "right-hand side of '='"
+  return $ SFunDef fname vars rhs          -- SDef or similar constructor for definitions
+
+-- parseTypeDefinition :: Parser Stmt
+
+-- parseExprStmt :: Parser Stmt
+-- parseExprStmt = SExpr <$> parseExpr   -- wrap an expression in a Stmt constructor
+
+
+{--
+  -- | Parse an atomic expression (no infix operators or application at this stage).
+  term :: Parser Expr
+  term = choice 
+    [ ifExpr
+    , letExpr
+    , matchExpr
+    , boolLit
+    , intLit
+    , listLit
+    , varExpr
+    , parenExpr
+    ]
+    <?> "term"
+
+  -- Parse an if-then-else expression
+  ifExpr :: Parser Expr
+  ifExpr = do
+    reserved "if"
+    cond <- expr
+    reserved "then"
+    tr   <- expr
+    reserved "else"
+    fl   <- expr
+    return (EIf cond tr fl)
+
+  -- Parse a let-in expression
+  letExpr :: Parser Expr
+  letExpr = do
+    reserved "let"
+    name <- identifier            -- (assuming simple let binding to a variable)
+    reservedOp "="
+    val  <- expr
+    reserved "in"
+    body <- expr
+    return (ELet name val body)
+
+  -- Parse a match expression (pattern matching, similar to Haskell's case)
+  matchExpr :: Parser Expr
+  matchExpr = do
+    reserved "match"
+    scrut <- expr
+    reserved "with"
+    -- Case alternatives inside braces, separated by semicolons (or on new lines)
+    alts <- braces (semiSep caseAlt) <|> sepBy1 caseAlt (Token.semi lexer)
+    return (EMatch scrut alts)
+
+  -- Parse a boolean literal
+  boolLit :: Parser Expr
+  boolLit = (reserved "True"  >> return (ELit (LBool True)))
+        <|> (reserved "False" >> return (ELit (LBool False)))
+
+  -- Parse an integer literal (handles optional sign via Token.integer)
+  intLit :: Parser Expr
+  intLit = do
+    n <- Token.integer lexer   -- returns an Integer (or Int) value
+    return (ELit (LInt (fromInteger n)))
+
+  -- Parse a list literal, e.g. [expr1, expr2, ...]
+  listLit :: Parser Expr
+  listLit = do
+    elems <- brackets (commaSep expr)
+    return (EList elems)
+
+  -- Parse a variable (identifier)
+  varExpr :: Parser Expr
+  varExpr = do
+    name <- identifier
+    return (EVar name)
+
+  -- | Parse a sequence of terms as left-associative function application.
+  applyExpr :: Parser Expr
+  applyExpr = do
+    func <- term
+    args <- many term
+    return $ foldl EApp func args
+
+
+  -- Define helper to build an infix operator parser
+  infixOp opStr constructor assoc = Infix (reservedOp opStr >> return (\x y -> EBinOp constructor x y)) assoc
+
+  -- Operator precedence table (list of lists). Higher in the list = higher precedence.
+  opTable = [ [ infixOp "*"  Mul  AssocLeft                -- multiplication (if included)
+              , infixOp "/"  Div  AssocLeft ]              -- division (if included)
+            , [ infixOp "+"  Add  AssocLeft
+              , infixOp "-"  Sub  AssocLeft ]
+            , [ infixOp "==" Eq   AssocNone ]              -- equality, non-associative
+            , [ infixOp "&&" And  AssocRight ]
+            , [ infixOp "||" Or   AssocRight ]
+            ]
+
+  -- | Parse a binary operator and return its BinOp AST constructor.
+  binOp :: Parser BinOp
+  binOp = choice 
+    [ reservedOp "+"  >> return Add
+    , reservedOp "-"  >> return Sub
+    , reservedOp "*"  >> return Mul    -- if multiplication is supported
+    , reservedOp "/"  >> return Div    -- if division is supported
+    , reservedOp "==" >> return Eq
+    , reservedOp "&&" >> return And
+    , reservedOp "||" >> return Or
+    , reservedOp ":"  >> return Cons
+    ]
+
+
+  -- | Parse a pattern for case/let or function arguments.
+  patternParser :: Parser Pattern
+  patternParser = consPattern <?> "pattern"
+    where
+      -- Parse cons patterns right-associatively
+      consPattern = patAtom `chainr1` (reservedOp ":" >> return PCons)
+      -- Atomic pattern (no cons)
+      patAtom = choice 
+        [ reserved "_"    >> return PWild      -- wildcard
+        , reserved "True" >> return (PLit (LBool True))
+        , reserved "False">> return (PLit (LBool False))
+        , do { n <- Token.integer lexer; return (PLit (LInt (fromInteger n))) }
+        , listPat
+        , parens patternParser
+        , patVar
+        ]
+      -- Parse a list pattern [p1, p2, ...]
+      listPat = brackets (commaSep patternParser) >>= \ps -> return (PList ps)
+      -- Variable pattern (identifier)
+      patVar = identifier >>= \name -> return (PVar name)
+
+  -- | Parse a single case alternative: pattern -> expression
+  caseAlt :: Parser CaseAlt
+  caseAlt = do
+    pat <- patternParser
+    reservedOp "->"
+    rhs <- expr
+    return (pat,rhs)
+
+
+
+  -- Parse a parenthesized expression
+  parenExpr :: Parser Expr
+  parenExpr = parens expr
+
+  -- | Parse a full expression, with operators and application.
+  expr :: Parser Expr
+  expr = buildExpressionParser opTable applyExpr <?> "expression"
+
+
+  -- | Parse a type.
+  typeParser :: Parser Type
+  typeParser = arrowType <?> "type"
+    where
+      -- Parse function arrow types right-associatively
+      arrowType = baseType `chainr1` (reservedOp "->" >> return TFun)
+      -- Parse a base type (no arrows)
+      baseType = choice 
+        [ reserved "Int"  >> return TInt
+        , reserved "Bool" >> return TBool
+        , listType
+        , parens typeParser
+        ]
+      -- List type [t]
+      listType = brackets typeParser >>= \t -> return (TList t)
+
+
+  -- | Parse a top-level statement (function definition or type signature).
+  stmt :: Parser Stmt
+  stmt = try parseTypeSig <|> parseFunDef <?> "statement"
+    where
+      parseTypeSig = do
+        name <- identifier
+        reservedOp "::"
+        ty   <- typeParser
+        return (STypeSig name ty)
+      parseFunDef = do
+        name <- identifier
+        args <- many patternParser        -- zero or more patterns for function arguments
+        reservedOp "="
+        body <- expr
+        return (SFunDef name args body)
+
+  -- | Parse a full program as a list of statements.
+  program :: Parser Prog
+  program = whiteSpace *> programBody <* eof
+    where 
+      programBody = sepEndBy stmt statementSep
+      -- Allow semicolon or newline as a statement separator:
+      statementSep = optional (Token.semi lexer) >> many1 newline
+
+--}
+
+
+
+
+
 -- binOp opf ops assoc = Infix (reservedOp ops >> return (\lhs rhs -> EBinOp lhs opf rhs)) assoc
 
 -- type OpTable a = OperatorTable String () Identity a
@@ -123,7 +458,7 @@ commaSep1 = Tok.commaSep1 lexer
 -- operatorTable :: OpTable Expr
 -- operatorTable = [[binOp Add "+" AssocLeft,binOp Add "+" AssocLeft]
 --                 ,[binOp Mul "*" AssocLeft,binOp Div "/" AssocLeft]]
-
+{-
 eol :: Parser ()
 eol = do
   _ <- char '\n'
@@ -406,6 +741,9 @@ stmt' = stmt
 program :: Parser [Stmt]
 program = many stmt'
 
+-}
+
+
 
 parseString :: Parser a -> String -> a
 parseString p s = case parse p "" s of
@@ -424,8 +762,18 @@ parseFileIO p f = do
   -- src <- readFile f
   let !src = unsafePerformIO (readFile f)
   case parse p "" src of
-    (Left e)  -> print e
+    (Left e)  -> print e -- throw src e
     (Right a) -> print a
+  where throw src e = do
+          case parse p' "" src of
+            (Left e')  -> do { print "failed really bad. "; print e'}
+            (Right a) -> print a
+          print e
+        p' = do
+          () <- (p >> return ()) <|> return ()
+          input <- getInput
+          state <- getState
+          return (input,state)
 
 exprTests :: [String]
 exprTests
@@ -446,4 +794,4 @@ exprTests
 {-# NOINLINE runExprTests #-}
 -- runExprTests :: [Expr]
 runExprTests :: IO ()
-runExprTests = mapM_ print $ map (parseString expr) exprTests
+runExprTests = mapM_ print $ map (parseString parseExpr) exprTests

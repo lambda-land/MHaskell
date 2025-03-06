@@ -1,5 +1,4 @@
 
-intList :: [Int]
 intList = 1
 intList = 2
 

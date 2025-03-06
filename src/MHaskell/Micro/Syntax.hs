@@ -24,10 +24,10 @@ data Stmt
 
 data Expr
   = EVar Name
-  | ELitInt Int
-  | ELitBool Bool
-  | ELitNil
-  | ELitList [Expr]
+  | EInt Int
+  | EBool Bool
+  | ENil
+  | EList [Expr]
   | EBinOp Expr BinOp Expr
   | EApp Expr Expr
   | EFun Name Expr
@@ -57,9 +57,9 @@ type CaseAlt = (Pattern,Expr)
 data Pattern
   = PAny
   | PVar Name
-  | PLitInt Int
-  | PLitBool Bool
-  | PLitNil
+  | PInt Int
+  | PBool Bool
+  | PNil
   | PListCons Pattern Pattern
   deriving (Show,Eq)
 
