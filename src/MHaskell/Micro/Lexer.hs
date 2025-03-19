@@ -9,30 +9,54 @@ import Text.Parsec.String
 import Text.Parsec.Char
 
 import Text.Parsec.Prim
+import Control.Monad (unless)
+
+
+data Tok
+  = TokInt Int
+  | TokBool Bool
+  | TokIdent String
+  | TokOp String
+  deriving (Show,Eq,Ord)
+
+data Token
+  = Token { tok :: Tok
+          , pos :: SourcePos
+          } deriving (Show)
+
+snoc :: [a] -> a -> [a]
+snoc xs x = xs ++ [x]
+
 
 data BlockState
   = BlockState { indentStack :: [Int]
                , consumedInput :: [[String]]
+               , newlineTally :: [SourcePos]
                } deriving (Show)
 
 initialState :: BlockState
-initialState = BlockState { indentStack = [0]
-                          , consumedInput = [[]]
+initialState = BlockState { indentStack = []
+                          , consumedInput = []
+                          , newlineTally = []
                           }
 
 type BlockParser a = Parsec String BlockState a
 
 
-pushConsumedInput :: String -> BlockParser ()
-pushConsumedInput s = modifyState (\st -> st { consumedInput = push (consumedInput st) })
-  where push (h:t) = (h ++ [s]) : t
-        push [] = [[s]]
+pushConsumed :: String -> BlockParser ()
+pushConsumed s = do
+  modifyState (\st -> st { consumedInput = push (consumedInput st) })
+  where push [] = [[s]]
+        push xs = snoc xs [s]
+
 
 blockify :: BlockParser ()
 blockify = do
-  -- input <- getInput=
-  chunk <- manyTill anyChar (try newline)
-  pushConsumedInput chunk
+  chunk <- manyTill (noneOf "\n\r") (lookAhead newline)
+  pos <- getPosition
+  modifyState (\st -> st { newlineTally = snoc (newlineTally st) pos })
+  newline
+  unless (null chunk) (pushConsumed chunk)
   eof <|> blockify
   return ()
 
@@ -44,6 +68,18 @@ blockify' = do
   return (input,s)
 
 
+weird :: String -> Parser String
+weird xs = tokens id const xs
+
+weird' :: String -> Parser String
+weird' xs = tokens' id const xs
+
+
+runP :: Show a => Parser a -> String -> IO ()
+runP p input = do
+  case parse p "" input of
+    Left err -> print err
+    Right a -> print a
 
 
 lex :: String -> IO ()
