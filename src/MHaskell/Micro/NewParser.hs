@@ -9,11 +9,26 @@ import Control.Applicative
 import MHaskell.Micro.Syntax
 
 -- import Text.Parser.Token as PT
-import Text.Parser.Token.Style (haskellIdents)
+import Text.Parser.Token.Style (haskellIdents,emptyIdents)
+import Text.Parser.LookAhead (LookAheadParsing(lookAhead))
 
+
+identifier :: Parser String
+identifier = do
+  l <- lower <|> char '_'
+  r <- many (alphaNum <|> char '_')
+  return (l:r)
 
 variable :: Parser Name
-variable = ident haskellIdents
+variable = do
+  x <- identifier
+  _ <- many space
+  -- manyTill anyChar (lookAhead (noneOf " \n"))
+  -- many space
+  return x
+-- variable = do
+--   lookAhead (noneOf "\n")
+--   ident haskellIdents
 
 parseInt :: Parser Expr
 parseInt = EInt . fromIntegral <$> integer
@@ -77,3 +92,18 @@ parseAtom = parseVar <|> parseInt <|> parseBool <|> parens parseExpr
 
 -- parseString parseExpr mempty "1 * 2 + 1 * 2"
 -- parseString parseExpr mempty "f (x + 1)"
+
+parseStmt :: Parser Stmt
+parseStmt = do
+  name <- variable
+  args <- many variable
+  _ <- symbol "="
+  body <- parseExpr
+  return $ SFunDef name args body
+
+
+parseFile :: Parser a -> String -> IO (Result a)
+parseFile p fname = do
+  src <- readFile fname
+  return $ parseString p mempty src
+
