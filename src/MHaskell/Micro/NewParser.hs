@@ -48,11 +48,24 @@ parseOpExprPrec n | n < length binOpPrec = case binOpPrec !! n of
           e2 <- parseOpExprPrec n
           return $ EBinOp e1 op e2
         pBinOp' op = try (pBinOp op) <|> parseOpExprPrec (n + 1)
+parseOpExprPrec n | n == length binOpPrec = try parseApp <|> parseOpExprPrec (n + 1)
+  where parseApp = do 
+          e1 <- parseOpExprPrec (n + 1)
+          e2 <- parseOpExprPrec n
+          return $ EApp e1 e2
 parseOpExprPrec _ = parseAtom
 
+parseAppExpr :: Parser Expr
+parseAppExpr = parseApp <|> parseAtom
+  where parseApp :: Parser Expr
+        parseApp = do
+          e1 <- parseExpr
+          e2 <- parseExpr
+          return $ EApp e1 e2
 
 parseExpr :: Parser Expr
 parseExpr = parseOpExprPrec 0 <|> parseAtom
+
 
 parseAtom :: Parser Expr
 parseAtom = parseVar <|> parseInt <|> parseBool <|> parens parseExpr
