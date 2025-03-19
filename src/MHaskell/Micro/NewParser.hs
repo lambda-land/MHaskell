@@ -12,6 +12,9 @@ import MHaskell.Micro.Syntax
 import Text.Parser.Token.Style (haskellIdents)
 
 
+variable :: Parser Name
+variable = ident haskellIdents
+
 parseInt :: Parser Expr
 parseInt = EInt . fromIntegral <$> integer
 
@@ -19,7 +22,7 @@ parseBool :: Parser Expr
 parseBool = EBool <$> (True <$ symbol "True" <|> False <$ symbol "False")
 
 parseVar :: Parser Expr
-parseVar = EVar <$> (ident haskellIdents)
+parseVar = EVar <$> variable
 
 parseOp :: Parser BinOp
 parseOp = foldr1 (<|>) $ [op <$ symbol (binOpPP op) | op <- allBinOps]
@@ -55,16 +58,17 @@ parseOpExprPrec n | n == length binOpPrec = try parseApp <|> parseOpExprPrec (n 
           return $ EApp e1 e2
 parseOpExprPrec _ = parseAtom
 
-parseAppExpr :: Parser Expr
-parseAppExpr = parseApp <|> parseAtom
-  where parseApp :: Parser Expr
-        parseApp = do
-          e1 <- parseExpr
-          e2 <- parseExpr
-          return $ EApp e1 e2
+
+parseAbs :: Parser Expr
+parseAbs = do
+  _ <- symbolic '\\'
+  name <- variable
+  _ <- symbol "->"
+  body <- parseExpr
+  return $ EFun name body
 
 parseExpr :: Parser Expr
-parseExpr = parseOpExprPrec 0 <|> parseAtom
+parseExpr = parseOpExprPrec 0 <|> parseAbs <|> parseAtom
 
 
 parseAtom :: Parser Expr
