@@ -71,6 +71,7 @@ library
         MHaskell.MiniPlus
         MHaskell.Micro.Playground
         MHaskell.Micro.Lexer
+        MHaskell.Micro.NewParser
         Test
     
 
@@ -87,7 +88,9 @@ library
         containers,
         parsec,
         prettyprinter,
-        text
+        text,
+        parsers,
+        trifecta
 
     -- Directories containing source files.
     hs-source-dirs:   src

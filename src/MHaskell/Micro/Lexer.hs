@@ -50,22 +50,26 @@ pushConsumed s = do
         push xs = snoc xs [s]
 
 
-blockify :: BlockParser ()
+blockify :: BlockParser String
 blockify = do
   chunk <- manyTill (noneOf "\n\r") (lookAhead newline)
   pos <- getPosition
   modifyState (\st -> st { newlineTally = snoc (newlineTally st) pos })
-  newline
   unless (null chunk) (pushConsumed chunk)
-  eof <|> blockify
-  return ()
+  nl <- newline
+  next <- (eof >> return "") <|> blockify
+  let rest = nl : next
+  if null chunk then do
+    return rest
+  else do
+    return $ chunk ++ ";" ++ rest
 
-blockify' :: BlockParser (String,BlockState)
+blockify' :: BlockParser (String,String,BlockState)
 blockify' = do
-  blockify
+  processed <- blockify
   s <- getState
   input <- getInput
-  return (input,s)
+  return (input,processed,s)
 
 
 weird :: String -> Parser String
@@ -86,7 +90,13 @@ lex :: String -> IO ()
 lex input = do
   case runParser blockify' initialState "" input of
     Left err -> print err
-    Right a -> print a
+    Right (inp,pro,s) -> do
+      print inp
+      print s
+      print pro
+      print "----"
+      putStr pro
+      print "----"
 
 
 {-# NOINLINE lexFile #-}
