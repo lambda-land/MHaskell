@@ -12,7 +12,8 @@ import MHaskell.Micro.Syntax
 import Text.Parser.Token.Style (haskellIdents,emptyIdents)
 import Text.Parser.LookAhead (LookAheadParsing(lookAhead))
 
-
+{-}
+Im editing this stuff! See git diff. 
 identifier :: Parser String
 identifier = do
   l <- lower <|> char '_'
@@ -29,7 +30,7 @@ variable = do
 -- variable = do
 --   lookAhead (noneOf "\n")
 --   ident haskellIdents
-
+-}
 parseInt :: Parser Expr
 parseInt = EInt . fromIntegral <$> integer
 
