@@ -72,3 +72,4 @@ parseAtom = parseVar <|> parseInt <|> parseBool <|> parens parseExpr
 
 
 -- parseString parseExpr mempty "1 * 2 + 1 * 2"
+-- parseString parseExpr mempty "f (x + 1)"
