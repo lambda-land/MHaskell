@@ -70,6 +70,8 @@ library
         MHaskell.Mini.PrettyPrint
         MHaskell.MiniPlus
         MHaskell.Micro.Playground
+        MHaskell.Micro.Lexer
+        Test
     
 
 

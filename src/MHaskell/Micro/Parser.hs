@@ -24,7 +24,9 @@ import Control.Applicative (some)
 
 
 languageDef :: Tok.LanguageDef st
-languageDef = Lang.haskellDef
+languageDef = ld
+  where ld = Lang.haskellDef
+
 -- languageDef = haskellStyle
 --   { Tok.reservedNames = ["Int", "Bool", "if", "then", "else", "let", "in", "match", "with", "True", "False", "Nil"]
 --   , Tok.reservedOpNames = ["+", "-", "*", "/", "==", "<", ">", "<=", ">=", ":", "->", "=", "::", "\\", "_"]
@@ -41,6 +43,9 @@ reservedNames = Tok.reservedNames languageDef
 
 lexer :: Tok.TokenParser st
 lexer = Tok.makeTokenParser languageDef
+-- lexer = tp { Tok.lexeme = lexeme' }
+--   where tp = Tok.makeTokenParser languageDef
+--         lexeme' p = Tok.whiteSpace tp *> p
 
 identifier :: Parser String
 identifier = Tok.identifier lexer
@@ -139,18 +144,27 @@ contents p = do
 int :: Parser Int
 int = fromIntegral <$> integer
 
+eol :: Parser ()
+eol = choice [ try (void endOfLine <* whiteSpace) <?> "end of line"
+             , eof <* whiteSpace <?> "end of file"
+             ] <?> "end of line or file"
+
 choices :: [Parser a] -> Parser a
-choices ps = lexeme $ choices' (map lexeme ps)
-  where choices' [] = error "need at least one parser option for 'choices'."
-        choices' [p] = p
-        choices' (p:ps) = try p <|> choices' ps
+choices ps = lexeme $ whiteSpace *> (choice $ map (try . (whiteSpace*>)) ps)
+-- choices ps = choices' (map (whiteSpace >>) ps)
+-- -- choices = choices'
+--   where choices' [] = error "need at least one parser option for 'choices'."
+--         choices' [p] = p
+--         choices' (p:ps) = try p <|> choices' ps
 
 parseProgram :: Parser [Stmt]
+parseProgram = whiteSpace >> sepBy parseStmt (try eol)
+-- parseProgram = whiteSpace >> many (parseStmt <* eol) <* eof
 -- parseProgram = many (try (whiteSpace >> lexeme parseStmt)) <* eof
-parseProgram = do
-  stmts <- many (whiteSpace *> try (lexeme parseStmt))
-  eof
-  return stmts
+-- parseProgram = do
+--   stmts <- many (whiteSpace *> try (lexeme parseStmt))
+--   eof
+--   return stmts
 
 -- parseProgram = whiteSpace >> manyTill (try $ lexeme parseStmt) (try eof)
 -- parseProgram = whiteSpace >> many (try (try whiteSpace >> parseStmt))
@@ -204,18 +218,30 @@ parseExpr :: Parser Expr
 --   [ parseOpChain <?> "binary operation"
 --   , parseExprAtom <?> "atom"
 --   ]
-parseExpr = buildExpressionParser opTable (parseTerm') <?> "expression"
-  where parseTerm' :: Parser Expr
-        parseTerm' = choices
-          [ parens parseExpr, parseApp, parseTerm, parseExprAtom ]
+-- parseExpr = buildExpressionParser opTable (parseTerm') <?> "expression"
+--   where parseTerm' :: Parser Expr
+--         parseTerm' = do
+--           parseTerm <|> parseApp
 
+parseExpr = do
+  notFollowedBy newline
+  choices 
+    [ parseApp  <?> "application"
+    , parseTerm <?> "term"
+    ]
 parseTerm :: Parser Expr
-parseTerm = choices
-  [ parseIf          <?> "if condition"
-  , parseLambda      <?> "lambda abstraction"
-  , parseLet         <?> "let expression"
-  , parseExprAtom    <?> "expression atom"
-  ]
+parseTerm = do
+  notFollowedBy newline
+  choices
+    [ parseIf          <?> "if condition"
+    , parseLambda      <?> "lambda abstraction"
+    , parseLet         <?> "let expression"
+    , parseExprAtom    <?> "expression atom"
+    , parens parseExpr <?> "parenthesized expression"
+    -- , parseApp         <?> "function application"
+
+    -- , parseApp         <?> "function application"
+    ]
 
 -- 1. Atomic expressions and function application
 parseExprAtom :: Parser Expr
@@ -228,7 +254,8 @@ parseExprAtom = choices
 
 parseApp :: Parser Expr
 parseApp = do
-  es <- manyTill parseTerm (try (void $ oneOf "\n\r") <|> eof)
+  notFollowedBy newline
+  es <- many parseTerm
   return $ foldl1 EApp es
 
 -- parseApp = do 
@@ -320,7 +347,7 @@ parseDefinition = do
   vars <- many (identifier <?> "function argument")
   -- vars <- manyTill (try identifier <?> "function argument") (try $ reservedOp "=")
   _ <- reservedOp "=" <?> "function def '='"                     -- if an '=' follows, it's a definition
-  rhs <- (try parseExpr) <?> "right-hand side of '='"
+  rhs <- parseExpr <?> "right-hand side of '='"
   return $ SFunDef fname vars rhs          -- SDef or similar constructor for definitions
 
 -- parseTypeDefinition :: Parser Stmt

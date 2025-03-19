@@ -1,4 +1,4 @@
-id x = f True False
+id x = f 1 0
 
-id x = f False True
+id x = f 0 1
 
