@@ -50,3 +50,6 @@ parseOpExprPrec _ = parseAtom
 
 parseAtom :: Parser Expr
 parseAtom = parseInt <|> parseBool <|> parens parseExpr
+
+
+-- parseString parseExpr mempty "1 * 2 + 1 * 2"
